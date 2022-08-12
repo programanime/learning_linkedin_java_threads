@@ -165,7 +165,6 @@ class Task extends Thread {
         while(i<100_000_000_000L){
             i++;
             try{
-                if(i%10_000_000_000L==0){
                     System.out.println(Thread.currentThread().getName()+ " running "+i);
                 }
             }catch(Exception e){
@@ -478,3 +477,344 @@ new Thread(() -> {
 }).start(); 
 tController.start();
 ```
+
+# synchronization
+- race conditions
+- data races
+- cached variable problems
+- shared resources
+    - prevent to threads to access to a critical resource
+    - update shared variables
+
+# synchronization : problem
+when resource is not protected, it cause race condition problem
+
+![](img/73533.png)  
+
+```java
+long counter = 0;
+public static long plusCounter(){
+    return counter++;
+}
+
+plusCounter();
+
+Thread t1 = new Thread(() -> {
+    System.out.println("Task1 running");
+    for(int i=0;i<1_000_000_000L;i++)
+        plusCounter();
+    System.out.println("t1 finish");
+}); 
+
+Thread t2 = new Thread(() -> {
+    System.out.println("Task1 running");
+    for(int i=0;i<1_000_000_000L;i++)
+        plusCounter();
+    System.out.println("t2 finish");
+}); 
+
+t1.start();
+t2.start();
+
+System.out.println(counter); 
+```
+
+# synchronization : solution
+the solution is to use synchronized, then the critical section will be protected by a monitor
+```java
+class Sample{
+    long counter = 0;
+    public synchronized long plusCounter(){
+        return counter++;
+    }
+}
+
+Sample s = new Sample();
+
+Thread t1 = new Thread(() -> {
+    System.out.println("Task1 running");
+    for(int i=0;i<1_000_000_000L;i++)
+        s.plusCounter();
+    System.out.println("t1 finish");
+}); 
+
+Thread t2 = new Thread(() -> {
+    System.out.println("Task1 running");
+    for(int i=0;i<1_000_000_000L;i++)
+        s.plusCounter();
+    System.out.println("t2 finish");
+}); 
+
+t1.start();
+t2.start();
+
+System.out.println(s.counter); 
+```
+
+# synchronization using static
+```java
+class Sample{
+    public static long counter = 0;
+    public static synchronized long plusCounter(){
+        return counter++;
+    }
+
+    public void add(){
+        plusCounter();
+    }
+}
+
+
+Thread t1 = new Thread(() -> {
+    Sample s = new Sample();
+    System.out.println("Task1 running");
+    for(int i=0;i<1_000_000_000L;i++)
+        s.add();
+    System.out.println("t1 finish");
+}); 
+
+Thread t2 = new Thread(() -> {
+    Sample s = new Sample();
+    System.out.println("Task2 running"); 
+    for(int i=0;i<1_000_000_000L;i++)
+        s.add();
+    System.out.println("t2 finish");
+}); 
+
+t1.start();
+t2.start();
+
+Sample.counter;
+```
+the monitor protects static objects as well
+
+# critical section
+- code who needs to run serial
+- java ensures it with monitors
+
+# java monitor
+![](https://codippa.com/wp-content/uploads/2021/05/java-thread-monitor-and-lock.png)  
+- control access to a critic al section
+- if the monitor is locked, the thread is blocked
+- shared variable live on thread working memory
+    - ensure access to recent values
+
+# synchronized block
+protects the whole object
+![](img/synchronized_block.png)  
+```java
+class Sample{
+    long counter = 0;
+    public long plusCounter(){
+        return counter++;
+    }
+    public long plusCounter2(){
+        return counter++;
+    }
+}
+
+Sample s = new Sample();
+
+Thread t1 = new Thread(() -> {
+    synchronized(s){
+        for(int i=0;i<1_000_000_000L;i++)
+            s.plusCounter();
+    }
+}); 
+
+Thread t2 = new Thread(() -> {
+    synchronized(s){
+        for(int i=0;i<1_000_000_000L;i++)
+            s.plusCounter2();
+    }
+}); 
+
+t1.start();
+t2.start();
+s.counter;
+```
+
+# thread wait and notify
+- wait: pause the thread
+![](img/thread_wait.png)  
+
+- notify: unpause the thread
+![](img/thread_notify.png)  
+- the process to activate again the thread depends of the object condition queue
+
+# thread wait and notify : what you need?
+you can invoke wait just if you are the owner of the monitor
+```java
+long counter = 0L;
+Thread t = new Thread(() -> {
+    System.out.println("Task_00 running");
+    for(int i=0;i<1_000_000_000L;i++)
+        counter++;
+    System.out.println("Task_00 finish");
+}); 
+t.start();
+
+Thread t1 = new Thread(() -> {
+    System.out.println("Task_01 running");
+    synchronized(t){
+        try{
+            for(int i=0;i<500_000_000L;i++)
+            counter++;
+            System.out.println("t0 to wait");
+            t.wait();
+
+            for(int i=0;i<500_000_000L;i++)
+                counter++;
+            
+            System.out.println("t0 to resume");
+            t.notify();    
+        }catch(Exception e){
+            e.printStackTrace();        
+        }
+    }
+}); 
+t1.start();
+Thread.sleep(1000);
+synchronized(t){
+    t.notify();
+}
+counter;
+```
+
+# IlegalMonitorStateException
+- if you try to access to a monitor that is locked by another thread
+
+# DeadLock
+![](img/77241.png)  
+
+
+# Concurrency utilities
+- thread pool
+- async task
+- collection class for optimized concurrent access
+
+# Concurrency utilities : what solves
+- performance hight thread soft
+- reliability hight thread soft
+- prevent deadlock, starvation, race condition
+
+# starvation
+![](img/73551.jpg)  
+
+# Concurrency utilities : Executor
+- thread pool
+- separate create and management from main
+- worker thread to minimize overhead
+
+## Executor interface
+## ExecutorService interface
+- executor handle all threads for you and wait for them to finish
+```java
+ExecutorService executor = Executors.newFixedThreadPool(10);
+for(int i=0;i<10;i++){
+    final int ii = i;
+    executor.execute(() -> {System.out.println("Task running "+ii);
+        for(int j=0;j<1_000_000_000L;j++);
+        System.out.println("Task finish "+ii);
+    });
+}
+executor.shutdown();
+while(!executor.isTerminated());
+System.out.println("i finish");
+```
+- Executors.newFixedThreadPool(10);
+- executor.execute(() -> {});
+- executor.shutdown();
+- executor.isTerminated();
+
+- once there is some space in the poll, it continues executing more runnables
+
+## Schedule interface
+future or periodic task
+
+# Concurrency utilities : synchronizers
+# synchronizers : latches
+# countDownLatch
+good pattern, let you wait for n threads, and then execute other thread
+![](img/countDownLatch.png)  
+![](img/countDownLatchMethods.png)  
+![](img/41610.png)  
+```java
+public class Worker extends Thread {
+    private final CountDownLatch counter;
+    private final int i;
+
+    Worker(CountDownLatch counter, int i) {
+        this.counter = counter;
+        this.i = i;
+    }
+
+    public void run() {
+        try
+        {
+            Thread.sleep(3000*this.i);
+            System.out.println("work done "+i); 
+            counter.countDown();
+        }catch (InterruptedException ie){
+            System.err.println(ie);
+        }
+    }
+}
+
+CountDownLatch counter = new CountDownLatch(4);
+
+for(int i=1;i<30;++i){
+    new Thread(new Worker(counter, i)).start();
+}
+
+try{
+    counter.await();
+    System.out.println("ya termino el proceso");
+}catch(Exception e){
+    e.printStackTrace();
+}
+```
+
+# Future
+```java
+ExecutorService executor = Executors.newSingleThreadExecutor();
+public Future<Integer> calculate(Integer input) {
+    return executor.submit(() -> {
+        Thread.sleep(1000);
+        return input * input;
+    });
+}
+Future<Integer> future = calculate(10);
+
+while(!future.isDone()) {
+    System.out.println("Calculating...");
+    Thread.sleep(300);
+}
+
+Integer result = future.get();
+result;
+```
+
+# synchronizers : barriers
+
+# synchronizers : semaphores
+
+# synchronizers : exchanges
+
+# Concurrency utilities : for / join framework
+
+# Concurrency utilities : concurrent collection
+
+# Concurrency utilities : atomic variables
+
+# Concurrency utilities : Locks
+
+# Locking Framework
+# Lock
+![](img/lock_methods.png)  
+
+# ReentrantLock
+# Condition
+# ReadWriteLock
+# ReentrantReadWriteLock
+
